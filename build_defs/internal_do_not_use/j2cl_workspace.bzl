@@ -32,7 +32,7 @@ def setup_j2cl_workspace(omit_org_gwtproject_gwt = False,
     )
 
     # We cannot replace com_google_jsinterop_annotations so choose a different name
-    if !omit_com_google_jsinterop_annotations_head:
+    if not omit_com_google_jsinterop_annotations_head:
         http_archive(
             name = "com_google_jsinterop_annotations_head",
             urls = ["https://github.com/google/jsinterop-annotations/archive/master.zip"],
@@ -174,7 +174,7 @@ def setup_j2cl_workspace(omit_org_gwtproject_gwt = False,
         sha256 = "3c0747c95459cfadf6d11ef591452c98812a9208d40a9fe3719ba7dbf8a26132",
     )
 
-    if !omit_org_gwtproject_gwt:
+    if not omit_org_gwtproject_gwt:
         http_archive(
             name = "org_gwtproject_gwt",
             url = "https://gwt.googlesource.com/gwt/+archive/master.tar.gz",
