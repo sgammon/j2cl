@@ -7,8 +7,8 @@ load("@bazel_tools//tools/build_defs/repo:jvm.bzl", "jvm_maven_import_external")
 
 _MAVEN_CENTRAL_URLS = ["https://repo1.maven.org/maven2/"]
 
-def setup_j2cl_workspace(omit_gwtproject_gwt = False,
-                         com_google_jsinterop_annotations_head = False):
+def setup_j2cl_workspace(omit_org_gwtproject_gwt = False,
+                         omit_com_google_jsinterop_annotations_head = False):
     """Load all dependencies needed for J2CL."""
 
     versions.check("1.0.0")  # The version J2CL currently have a CI setup for.
@@ -32,7 +32,7 @@ def setup_j2cl_workspace(omit_gwtproject_gwt = False,
     )
 
     # We cannot replace com_google_jsinterop_annotations so choose a different name
-    if !com_google_jsinterop_annotations_head:
+    if !omit_com_google_jsinterop_annotations_head:
         http_archive(
             name = "com_google_jsinterop_annotations_head",
             urls = ["https://github.com/google/jsinterop-annotations/archive/master.zip"],
@@ -174,7 +174,7 @@ def setup_j2cl_workspace(omit_gwtproject_gwt = False,
         sha256 = "3c0747c95459cfadf6d11ef591452c98812a9208d40a9fe3719ba7dbf8a26132",
     )
 
-    if !omit_gwtproject_gwt:
+    if !omit_org_gwtproject_gwt:
         http_archive(
             name = "org_gwtproject_gwt",
             url = "https://gwt.googlesource.com/gwt/+archive/master.tar.gz",
