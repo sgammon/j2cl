@@ -39,6 +39,10 @@ alias(
 # Standard library related
 # ***************************************************
 
+exports_files([
+    "bootclasspath.jar",
+])
+
 alias(
     name = "jre",
     actual = "//jre/java:jre",
@@ -46,7 +50,7 @@ alias(
 
 default_java_toolchain(
     name = "j2cl_java_toolchain",
-    bootclasspath = ["//jre/java:libjre_bootclasspath.jar"],
+    bootclasspath = [":bootclasspath.jar"],
 )
 
 # ***************************************************
