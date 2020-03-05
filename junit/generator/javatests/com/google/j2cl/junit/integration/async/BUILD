@@ -1,10 +1,10 @@
-package(
-    licenses = ["notice"],  # Apache 2.0
-)
-
 load(
     "//junit/generator/javatests/com/google/j2cl/junit/integration:j2cl_junit_integration_test.bzl",
     "j2cl_test_integration_test",
+)
+
+package(
+    licenses = ["notice"],  # Apache 2.0
 )
 
 # For debugging purposes it can be helpful to have the test log results of
@@ -15,8 +15,10 @@ j2cl_test_integration_test(
     test_data = [
         "//junit/generator/javatests/com/google/j2cl/junit/integration/async/data:TestAfterWithFailingAsyncTest",
         "//junit/generator/javatests/com/google/j2cl/junit/integration/async/data:TestChainingWithException",
+        "//junit/generator/javatests/com/google/j2cl/junit/integration/async/data:TestMethodOrder",
         "//junit/generator/javatests/com/google/j2cl/junit/integration/async/data:TestNonAsyncTest",
         "//junit/generator/javatests/com/google/j2cl/junit/integration/async/data:TestResolvesAfterDelay",
+        "//junit/generator/javatests/com/google/j2cl/junit/integration/async/data:TestReturnsNullForAsyncBefore",
         "//junit/generator/javatests/com/google/j2cl/junit/integration/async/data:TestReturnsNullForPromise",
         "//junit/generator/javatests/com/google/j2cl/junit/integration/async/data:TestWillTimeOut",
         "//junit/generator/javatests/com/google/j2cl/junit/integration/async/data:TestStructuralThenable",
@@ -27,7 +29,6 @@ j2cl_test_integration_test(
         "//junit/generator/javatests/com/google/j2cl/junit/integration/async/data:TestReturnTypeNotStructuralPromiseThenParameterCount",
         "//junit/generator/javatests/com/google/j2cl/junit/integration/async/data:TestReturnTypeNotStructuralPromiseThenParameterNotJsType",
         "//junit/generator/javatests/com/google/j2cl/junit/integration/async/data:TestTimeOutNotProvided",
-        "//junit/generator/javatests/com/google/j2cl/junit/integration/async/data:TestWithLifeCycleMethodBeingAsync",
         "//junit/generator/javatests/com/google/j2cl/junit/integration/async/data:TestWithExpectedException",
     ],
     deps = ["//junit/generator/java/com/google/j2cl/junit/async"],

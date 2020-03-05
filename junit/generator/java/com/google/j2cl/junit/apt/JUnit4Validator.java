@@ -15,10 +15,10 @@
  */
 package com.google.j2cl.junit.apt;
 
-import static com.google.common.base.Preconditions.checkArgument;
+import static com.google.auto.common.MoreElements.isAnnotationPresent;
 import static com.google.common.collect.ImmutableList.toImmutableList;
 
-import com.google.auto.common.MoreElements;
+import com.google.j2cl.junit.async.Timeout;
 import java.util.List;
 import javax.lang.model.element.ExecutableElement;
 import javax.lang.model.element.Modifier;
@@ -42,6 +42,7 @@ class JUnit4Validator extends BaseValidator {
 
     boolean isValid = true;
     for (TypeElement type : MoreApt.getClassHierarchy(typeElement)) {
+      isValid &= validateType(type);
       isValid &= validateMethods(getAllMethodsAnnotatedWithTest(type));
       isValid &= validateMethods(getAllMethodsAnnotatedWithAfter(type));
       isValid &= validateMethods(getAllMethodsAnnotatedWithBefore(type));
@@ -57,17 +58,21 @@ class JUnit4Validator extends BaseValidator {
         .anyMatch(TestingPredicates.hasAnnotation(Test.class));
   }
 
+  private final boolean validateType(TypeElement type) {
+    if (isAnnotationPresent(type, Ignore.class)) {
+      errorReporter.report(ErrorMessage.IGNORE_ON_TYPE, type);
+      return false;
+    }
+    return true;
+  }
+
   private final boolean validateMethods(List<ExecutableElement> methods) {
     boolean isValid = true;
     for (ExecutableElement executableElement : methods) {
-      boolean isTest = MoreElements.isAnnotationPresent(executableElement, Test.class);
       isValid &= validateMethodPublic(executableElement);
       isValid &= validateMethodNotStatic(executableElement);
       isValid &= validateMethodNoArguments(executableElement);
-      isValid &=
-          isTest
-              ? validateTestMethod(executableElement)
-              : validateLifeCycleMethod(executableElement);
+      isValid &= validateAsync(executableElement);
     }
     return isValid;
   }
@@ -80,13 +85,25 @@ class JUnit4Validator extends BaseValidator {
     return true;
   }
 
-  private boolean validateTestMethod(ExecutableElement executableElement) {
-    checkArgument(MoreElements.isAnnotationPresent(executableElement, Test.class));
+  private boolean validateAsync(ExecutableElement executableElement) {
+    Test testAnnotation = executableElement.getAnnotation(Test.class);
+    Timeout timeoutAnnotation = executableElement.getAnnotation(Timeout.class);
+    long timeout =
+        testAnnotation != null
+            ? testAnnotation.timeout()
+            : timeoutAnnotation != null ? timeoutAnnotation.value() : 0;
+
     boolean isValid = true;
+
+    if (testAnnotation != null && timeoutAnnotation != null) {
+      errorReporter.report(ErrorMessage.TEST_HAS_TIMEOUT_ANNOTATION, executableElement);
+      isValid = false;
+    }
+
     if (TestingPredicates.IS_RETURNTYPE_A_THENABLE.test(executableElement)) {
       // if we are an async test, we need the timeout attribute
-      if (executableElement.getAnnotation(Test.class).timeout() <= 0) {
-        errorReporter.report(ErrorMessage.ASYNC_NO_TIMEOUT, executableElement);
+      if (timeout <= 0L) {
+        errorReporter.report(ErrorMessage.ASYNC_HAS_NO_TIMEOUT, executableElement);
         isValid = false;
       }
       // block usage of expected exception with async tests
@@ -97,8 +114,8 @@ class JUnit4Validator extends BaseValidator {
       }
     } else {
       // block usage of timeout with non async tests
-      if (executableElement.getAnnotation(Test.class).timeout() != 0) {
-        errorReporter.report(ErrorMessage.HAS_TIMEOUT, executableElement);
+      if (timeout != 0L) {
+        errorReporter.report(ErrorMessage.NON_ASYNC_HAS_TIMEOUT, executableElement);
         isValid = false;
       }
       if (!TestingPredicates.RETURN_TYPE_VOID_PREDICATE.test(executableElement)) {
@@ -107,10 +124,6 @@ class JUnit4Validator extends BaseValidator {
       }
     }
     return isValid;
-  }
-
-  private boolean validateLifeCycleMethod(ExecutableElement element) {
-    return validateMethodVoidReturn(element);
   }
 
   private List<ExecutableElement> getAllMethodsAnnotatedWithTest(TypeElement typeElement) {

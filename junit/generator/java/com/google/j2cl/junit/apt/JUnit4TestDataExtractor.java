@@ -17,22 +17,22 @@ package com.google.j2cl.junit.apt;
 
 import static com.google.auto.common.MoreElements.isAnnotationPresent;
 import static com.google.common.base.Preconditions.checkState;
+import static com.google.common.base.Predicates.not;
 import static com.google.common.collect.ImmutableList.toImmutableList;
-import static com.google.j2cl.junit.apt.MoreApt.asTypeElement;
 
 import com.google.auto.common.MoreElements;
+import com.google.common.base.Predicate;
+import com.google.common.base.Predicates;
 import com.google.common.collect.ImmutableList;
 import java.lang.annotation.Annotation;
-import java.util.LinkedHashSet;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
-import java.util.function.Predicate;
+import java.util.stream.Stream;
 import javax.lang.model.element.Element;
 import javax.lang.model.element.ExecutableElement;
 import javax.lang.model.element.Modifier;
 import javax.lang.model.element.TypeElement;
-import javax.lang.model.type.TypeKind;
-import javax.lang.model.type.TypeMirror;
 import javax.lang.model.util.ElementFilter;
 import org.junit.After;
 import org.junit.AfterClass;
@@ -49,63 +49,41 @@ class JUnit4TestDataExtractor {
         .packageName(MoreElements.getPackage(typeElement).getQualifiedName().toString())
         .simpleName(typeElement.getSimpleName().toString())
         .qualifiedName(typeElement.getQualifiedName().toString())
-        .testMethods(getTestMethods(typeElement))
-        .beforeMethods(getAnnotatedMethods(typeHierarchy.reverse(), Before.class))
+        .testMethods(getAnnotatedMethods(typeHierarchy, Test.class, not(TestMethod::isIgnored)))
+        .beforeMethods(getAnnotatedMethods(typeHierarchy, Before.class).reverse())
         .afterMethods(getAnnotatedMethods(typeHierarchy, After.class))
-        .beforeClassMethods(getAnnotatedMethods(typeHierarchy.reverse(), BeforeClass.class))
+        .beforeClassMethods(getAnnotatedMethods(typeHierarchy, BeforeClass.class).reverse())
         .afterClassMethods(getAnnotatedMethods(typeHierarchy, AfterClass.class))
         .build();
   }
 
-  private static ImmutableList<TestMethod> getTestMethods(TypeElement typeElement) {
-
-    // Ignore tests in this class and supertypes.
-    if (isAnnotationPresent(typeElement, Ignore.class)) {
-      return ImmutableList.of();
-    }
-
-    // Collect inherited methods
-    Set<TestMethod> methods = new LinkedHashSet<>();
-    for (TypeMirror ifce : typeElement.getInterfaces()) {
-      methods.addAll(getTestMethods(asTypeElement(ifce)));
-    }
-    if (typeElement.getSuperclass().getKind() != TypeKind.NONE) {
-      methods.addAll(getTestMethods(asTypeElement(typeElement.getSuperclass())));
-    }
-
-    Predicate<? super Element> isIgnored = TestingPredicates.hasAnnotation(Ignore.class);
-
-    // Remove ignored methods.
-    ElementFilter.methodsIn(typeElement.getEnclosedElements()).stream()
-        // JUnit4 as of 8/2019 requires both @Test and @Ignore for an overridden test to be ignored,
-        // although looking at the documentation and following open bug annotations like @Test, etc
-        // should be inherited; so in our implementation we honour @Ignore whether @Test is also
-        // defined in the method.
-        // (See: https://github.com/junit-team/junit4/issues/695
-        .filter(isIgnored)
-        .map(JUnit4TestDataExtractor::toTestMethod)
-        .forEach(methods::remove);
-
-    // Add declared methods.
-    ElementFilter.methodsIn(typeElement.getEnclosedElements()).stream()
-        .filter(TestingPredicates.hasAnnotation(Test.class))
-        .filter(isIgnored.negate())
-        .map(JUnit4TestDataExtractor::toTestMethod)
-        .forEach(methods::add);
-
-    return ImmutableList.sortedCopyOf(MethodSorter.getTestSorter(typeElement), methods);
+  private ImmutableList<TestMethod> getAnnotatedMethods(
+      List<TypeElement> typeHierarchy, Class<? extends Annotation> annotation) {
+    return getAnnotatedMethods(typeHierarchy, annotation, Predicates.alwaysTrue());
   }
 
   private ImmutableList<TestMethod> getAnnotatedMethods(
-      List<TypeElement> typeHierarchy, Class<? extends Annotation> annotation) {
+      List<TypeElement> typeHierarchy,
+      Class<? extends Annotation> annotation,
+      Predicate<TestMethod> filter) {
     return typeHierarchy.stream()
-        .flatMap(
-            t ->
-                ElementFilter.methodsIn(t.getEnclosedElements()).stream()
-                    .filter(TestingPredicates.hasAnnotation(annotation))
-                    .map(JUnit4TestDataExtractor::toTestMethod))
-        .distinct()
+        .flatMap(t -> getAnnotatedMethodStream(t, annotation))
+        .filter(distinctByName())
+        .filter(filter)
         .collect(toImmutableList());
+  }
+
+  private static Predicate<TestMethod> distinctByName() {
+    Set<String> seen = new HashSet<>();
+    return t -> seen.add(t.javaMethodName());
+  }
+
+  private static Stream<TestMethod> getAnnotatedMethodStream(
+      TypeElement type, Class<? extends Annotation> annotation) {
+    return ElementFilter.methodsIn(type.getEnclosedElements()).stream()
+        .filter(TestingPredicates.hasAnnotation(annotation))
+        .map(JUnit4TestDataExtractor::toTestMethod)
+        .sorted(MethodSorter.getTestSorter(type));
   }
 
   public static TestMethod toTestMethod(ExecutableElement element) {
@@ -117,6 +95,7 @@ class JUnit4TestDataExtractor {
         .expectedExceptionQualifiedName(getExpectedException(element))
         .timeout(getTimeout(element))
         .isAsync(TestingPredicates.IS_RETURNTYPE_A_THENABLE.test(element))
+        .isIgnored(isAnnotationPresent(element, Ignore.class))
         .build();
   }
 

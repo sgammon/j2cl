@@ -22,17 +22,21 @@ enum ErrorMessage {
   NON_PROMISE_RETURN(
       "Method %s has a non void return type that is not a promise-like. "
           + "A promise-like type is a type that is annotated with @JsType "
-          + "and has a 'then' method. 'then' method should have a 'success' callback parameter"
-          + "and an optional 'failure' callback parameter where both are"
+          + "and has a 'then' method. 'then' method should have a 'success' callback parameter "
+          + "and an optional 'failure' callback parameter where both are "
           + "@JsFunction or @FunctionalInterface."),
   HAS_ARGS("Method %s cannot have arguments."),
   IS_STATIC("Method %s cannot be static."),
   NON_PUBLIC("Method %s cannot be non-public."),
-  HAS_TIMEOUT("Method %s has timeout attribute but doesn't return a promise-like type."),
+  NON_ASYNC_HAS_TIMEOUT("Method %s has timeout but doesn't return a promise-like type."),
   ASYNC_HAS_EXPECTED_EXCEPTION(
       "Method %s has expectedException attribute but returns a promise-like type."),
-  ASYNC_NO_TIMEOUT("Method %s is missing @Test timeout attribute but returns a promise-like type."),
+  ASYNC_HAS_NO_TIMEOUT("Method %s is missing timeout but returns a promise-like type."),
+  TEST_HAS_TIMEOUT_ANNOTATION(
+      "Method %s has @Timeout annotation. @Timeout can only be used with @Before/@After. "
+          + "Test methods should use @Test(timeout=x) instead."),
   NON_TOP_LEVEL_TYPE("Type %s is not a top level class."),
+  IGNORE_ON_TYPE("Type %s has @Ignore. @Ignore on types are currently not supported."),
   SKIPPED_TYPE("Type %s is not a JUnit test or a JUnit4 style suite. Skipped.", Kind.WARNING),
   EMPTY_SUITE("Test suite %s doesn't include any tests."),
   JUNIT3_SUITE("Type %s is a JUnit3 style suite. j2cl_test supports only JUnit4 style suites."),
