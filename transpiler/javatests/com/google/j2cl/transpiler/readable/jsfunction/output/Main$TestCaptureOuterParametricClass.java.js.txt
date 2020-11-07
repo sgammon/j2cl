@@ -1,8 +1,0 @@
-goog.module('com.google.j2cl.transpiler.readable.jsfunction.Main.TestCaptureOuterParametricClass');
-
-goog.require('java.lang.Object');
-goog.require('nativebootstrap.Util');
-goog.require('java.util.ArrayList');
-
-const TestCaptureOuterParametricClass = goog.require('com.google.j2cl.transpiler.readable.jsfunction.Main.TestCaptureOuterParametricClass$impl');
-exports = TestCaptureOuterParametricClass;

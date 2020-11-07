@@ -13,6 +13,10 @@
  */
 package com.google.j2cl.common;
 
+import static java.nio.charset.StandardCharsets.UTF_8;
+
+import java.io.ByteArrayOutputStream;
+import java.io.PrintStream;
 import org.kohsuke.args4j.CmdLineException;
 import org.kohsuke.args4j.CmdLineParser;
 import org.kohsuke.args4j.Option;
@@ -29,7 +33,7 @@ public abstract class CommandLineTool {
     this.toolName = toolName;
   }
 
-  protected abstract Problems run();
+  protected abstract void run(Problems problems);
 
   // TODO(goktug): reduce visibility.
   protected Problems processRequest(String[] args) {
@@ -50,19 +54,22 @@ public abstract class CommandLineTool {
 
     if (this.help) {
       String message = "%s\nwhere possible options include:\n%s";
-      problems.info(message, usage, J2clUtils.streamToString(parser::printUsage));
+      ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
+      parser.printUsage(new PrintStream(outputStream));
+      problems.info(message, usage, new String(outputStream.toByteArray(), UTF_8));
       return problems;
     }
 
     try {
-      return run();
+      run(problems);
     } catch (Problems.Exit e) {
-      return e.getProblems();
+      // Program aborted due to errors recorded in problems.
     }
+    return problems;
   }
 
-  protected final void execute(String[] args) {
+  protected final int execute(String[] args) {
     Problems problems = this.processRequest(args);
-    System.exit(problems.reportAndGetExitCode(System.err));
+    return problems.reportAndGetExitCode(System.err);
   }
 }

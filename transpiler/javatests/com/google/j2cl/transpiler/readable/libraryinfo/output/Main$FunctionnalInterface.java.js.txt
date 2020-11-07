@@ -1,7 +1,0 @@
-goog.module('com.google.j2cl.transpiler.readable.libraryinfo.Main.FunctionnalInterface');
-
-goog.require('nativebootstrap.Util');
-goog.require('com.google.j2cl.transpiler.readable.libraryinfo.Main.FunctionnalInterface.$LambdaAdaptor');
-
-const FunctionnalInterface = goog.require('com.google.j2cl.transpiler.readable.libraryinfo.Main.FunctionnalInterface$impl');
-exports = FunctionnalInterface;

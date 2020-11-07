@@ -1,8 +1,6 @@
 # Description:
 #   Build rules used by J2CL and BUILD targets used by the rules.
 
-load("@bazel_tools//tools/jdk:default_java_toolchain.bzl", "default_java_toolchain")
-
 package(
     default_visibility = ["//visibility:public"],
     licenses = ["notice"],  # Apache 2.0
@@ -44,13 +42,8 @@ exports_files([
 ])
 
 alias(
-    name = "jre",
-    actual = "//jre/java:jre",
-)
-
-default_java_toolchain(
     name = "j2cl_java_toolchain",
-    bootclasspath = [":bootclasspath.jar"],
+    actual = "//jre/java:j2cl_java_toolchain",
 )
 
 # ***************************************************
@@ -69,4 +62,9 @@ alias(
 alias(
     name = "GwtIncompatibleStripper",
     actual = "//tools/java/com/google/j2cl/tools/gwtincompatible:GwtIncompatibleStripper_worker",
+)
+
+alias(
+    name = "J2clRta",
+    actual = "//tools/java/com/google/j2cl/tools/rta:J2clRta_worker",
 )

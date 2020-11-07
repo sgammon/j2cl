@@ -1,7 +1,0 @@
-goog.module('com.google.j2cl.transpiler.readable.bridgejsmethod.Main.J');
-
-goog.require('nativebootstrap.Util');
-goog.require('com.google.j2cl.transpiler.readable.bridgejsmethod.Main.J.$LambdaAdaptor');
-
-const J = goog.require('com.google.j2cl.transpiler.readable.bridgejsmethod.Main.J$impl');
-exports = J;

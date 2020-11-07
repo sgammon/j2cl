@@ -17,18 +17,18 @@ package com.google.j2cl.tools.rta;
 
 import static com.google.common.base.Preconditions.checkNotNull;
 
-import com.google.j2cl.libraryinfo.LibraryInfo;
-import com.google.j2cl.libraryinfo.LibraryInfoBuilder;
-import com.google.j2cl.libraryinfo.MemberInfo;
-import com.google.j2cl.libraryinfo.MethodInvocation;
-import com.google.j2cl.libraryinfo.TypeInfo;
+import com.google.j2cl.transpiler.backend.libraryinfo.LibraryInfo;
+import com.google.j2cl.transpiler.backend.libraryinfo.LibraryInfoBuilder;
+import com.google.j2cl.transpiler.backend.libraryinfo.MemberInfo;
+import com.google.j2cl.transpiler.backend.libraryinfo.MethodInvocation;
+import com.google.j2cl.transpiler.backend.libraryinfo.TypeInfo;
 import java.util.Collection;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
 /** Give information about inheritance relationships between types. */
-public class TypeGraphBuilder {
+class TypeGraphBuilder {
 
   static Collection<Type> build(List<LibraryInfo> libraryInfos) {
     Map<String, Type> typesByName = new LinkedHashMap<>();
@@ -78,7 +78,7 @@ public class TypeGraphBuilder {
           Type enclosingType =
               typesByName.get(libraryInfo.getTypeMap(methodInvocation.getEnclosingType()));
           Member referencedMember = enclosingType.getMemberByName(methodInvocation.getMethod());
-          member.addReferencedMember(referencedMember);
+          member.addReferencedMember(checkNotNull(referencedMember));
         }
       }
     }

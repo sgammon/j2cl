@@ -1,0 +1,14 @@
+;;; Code for emptymethod.EmptyMethod
+
+;;; CLASS  EmptyMethod
+
+(type $emptymethod.EmptyMethod (struct
+))
+
+;;; void EmptyMethod.main(String[] args)
+(func $main<java.lang.String<>>:void@emptymethod.EmptyMethod (export "main")
+ (param $args.6751 (ref null $java.lang.Object))
+ (block
+ )
+)
+

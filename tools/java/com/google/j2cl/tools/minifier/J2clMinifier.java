@@ -15,6 +15,7 @@ package com.google.j2cl.tools.minifier;
 
 import static com.google.common.base.Preconditions.checkState;
 import static com.google.common.collect.Iterables.getLast;
+import static java.nio.charset.StandardCharsets.UTF_8;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.HashMultiset;
@@ -27,7 +28,6 @@ import com.google.j2cl.tools.rta.UnusedLines;
 import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStream;
-import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.util.Arrays;
@@ -54,18 +54,101 @@ import java.util.regex.Pattern;
  * (files ending in .java.js) since only such files should contain references to mangled J2CL names.
  * So if some caller wants to optimize their minifier usage they might consider invoking it only on
  * .java.js files.
- *
- * <p>Line comments are recognized and preserved, mostly to keep the sourcemap comment but also to
- * make sure that the parser doesn't interpret the contents of a line comment and let it effect the
- * parse state.
- *
- * <p>SourceMap updating would be nice. This may be added later.
  */
 public class J2clMinifier {
 
   private interface TransitionFunction {
-    StringBuilder transition(
-        StringBuilder minifiedContentBuffer, StringBuilder identifierBuffer, char c, int state);
+    void transition(Buffer buffer, char c);
+  }
+
+  private static class Buffer {
+    private final StringBuilder contentBuffer = new StringBuilder();
+    private int identifierStartIndex = -1;
+    private int whitespaceStartIndex = 0;
+    // We essentially want the ability to see if the last meaningful character we saw is something
+    // that is clearly a statement start semi-colon so we know that is not inside an expression.
+    // We could easily achive that by tracing back the characters but that is inefficient vs. our
+    // tracking here via append.
+    private int statementStartIndex = 0;
+    private boolean nextIsStatementStart = true;
+
+    void append(char c) {
+      int nextIndex = contentBuffer.length();
+      if (nextIsStatementStart) {
+        statementStartIndex = nextIndex;
+        nextIsStatementStart = false;
+      }
+
+      if (c == ' ') {
+        contentBuffer.append(c);
+        return; // Exit early since we don't want to increment the whiteSpaceStartIndex.
+      }
+
+      if (c == '\n') {
+        // Trim the trailing whitespace since it doesn't break sourcemaps.
+        nextIndex = trimTrailingWhitespace(nextIndex);
+
+        // Also move the statetementStartIndex to point new line if it was looking at the
+        // whitespace. This also simplifies the statement matches.
+        if (statementStartIndex == nextIndex) {
+          statementStartIndex = nextIndex + 1;
+        }
+      } else if (c == ';' || c == '{' || c == '}') {
+        // There are other ways to start statements but this is enough in the context of minifier.
+        nextIsStatementStart = true;
+      }
+
+      contentBuffer.append(c);
+      // The character that is placed in the buffer is not a whitespace, update whitespace index.
+      whitespaceStartIndex = nextIndex + 1;
+    }
+
+    private int trimTrailingWhitespace(int nextIndex) {
+      if (whitespaceStartIndex != nextIndex) {
+        // There are trailing whitespace characters, trim them.
+        nextIndex = whitespaceStartIndex;
+        contentBuffer.setLength(nextIndex);
+      }
+      return nextIndex;
+    }
+
+    void recordStartOfNewIdentifier() {
+      identifierStartIndex = contentBuffer.length();
+    }
+
+    String getIdentifier() {
+      return contentBuffer.substring(identifierStartIndex);
+    }
+
+    void replaceIdentifier(String newIdentifier) {
+      contentBuffer.replace(identifierStartIndex, contentBuffer.length(), newIdentifier);
+      identifierStartIndex = -1;
+      whitespaceStartIndex = contentBuffer.length();
+    }
+
+    boolean endOfStatement() {
+      return nextIsStatementStart;
+    }
+
+    int lastStatementIndexOf(String name) {
+      int index = contentBuffer.indexOf(name, statementStartIndex);
+      return index == -1 ? -1 : index - statementStartIndex;
+    }
+
+    Matcher matchLastStatement(Pattern pattern) {
+      return pattern.matcher(contentBuffer).region(statementStartIndex, contentBuffer.length());
+    }
+
+    void replaceStatement(String replacement) {
+      contentBuffer.replace(statementStartIndex, contentBuffer.length(), replacement);
+      statementStartIndex = contentBuffer.length();
+      whitespaceStartIndex = statementStartIndex;
+    }
+
+    @Override
+    public String toString() {
+      return contentBuffer.toString();
+    }
   }
 
   private static final String MINIFICATION_SEPARATOR = "_$";
@@ -141,34 +224,12 @@ public class J2clMinifier {
     return filePath.endsWith(".java.js");
   }
 
-  private static StringBuilder bufferIdentifierChar(
-      @SuppressWarnings("unused") StringBuilder minifiedContentBuffer,
-      StringBuilder identifierBuffer,
-      char c,
-      int state) {
-    identifierBuffer.append(c);
-    return identifierBuffer;
-  }
-
   private static String computePrettyIdentifier(String identifier) {
-    // Because we have a different mangling pattern for meta functions you can't extract the pretty
-    // name with a single simple regex match group.
+    // Extract a simplified name to the form of <name> or static_<name> or _<name>
+    String simplifiedName = identifier.substring(1, identifier.indexOf("__"));
 
-    if (startsLikeJavaMethodOrField(identifier)) {
-      // It's a regular field or method, extract its name.
-      int beginIndex = identifier.indexOf('_') + 1;
-      int endIndex = identifier.indexOf("__", beginIndex);
-      return identifier.substring(beginIndex, endIndex);
-    } else {
-      // It's one of the meta functions like "$create__".
-      return identifier.substring(1, identifier.indexOf('_'));
-    }
-  }
-
-  private static char[] getChars(String content) {
-    char[] chars = new char[content.length()];
-    content.getChars(0, content.length(), chars, 0);
-    return chars;
+    // Remove before underscore in the simplified name (if it exists).
+    return simplifiedName.substring(simplifiedName.indexOf('_') + 1);
   }
 
   private static boolean isIdentifierChar(char c) {
@@ -179,29 +240,32 @@ public class J2clMinifier {
         || (c >= 'A' && c <= 'Z');
   }
 
+  // Note that the regular member form is the current shortest identifier style. (Please see the
+  // identifier forms described in #startsLikeJavaMangledName).
+  private static final int MIN_JAVA_IDENTIFIER_SIZE = "f_x__".length();
+
   private static boolean isMinifiableIdentifier(String identifier) {
-    char firstChar = identifier.charAt(0);
-    if (firstChar != '$' && firstChar != 'm' && firstChar != 'f') {
+    if (identifier.length() < MIN_JAVA_IDENTIFIER_SIZE) {
       return false;
     }
-
-    // This is faster than a regex and more readable as well.
-    if (startsLikeJavaMethodOrField(identifier)) {
-      int underScoreIndex = identifier.indexOf('_');
-      // Match mangled Java member names of the form:  m_<name>__<par1>_ ....
-      return identifier.indexOf("__", underScoreIndex + 1) != -1;
-    }
-
-    return identifier.startsWith("$create__")
-        || identifier.startsWith("$ctor__")
-        || identifier.startsWith("$implements__")
-        || identifier.startsWith("$init__");
+    return startsLikeJavaMangledName(identifier) && identifier.contains("__");
   }
 
-  private static boolean startsLikeJavaMethodOrField(String identifier) {
-    return identifier.startsWith("f_")
-        || identifier.startsWith("m_")
-        || identifier.startsWith("$f_");
+  private static boolean startsLikeJavaMangledName(String identifier) {
+    char firstChar = identifier.charAt(0);
+    char secondChar = identifier.charAt(1);
+
+    // Form of m_ or f_ (i.e. regular members).
+    if ((firstChar == 'm' || firstChar == 'f') && secondChar == '_') {
+      return true;
+    }
+
+    // Form of $create, $implements $static etc. (i.e. synthetic members)
+    if (firstChar == '$' && secondChar > 'a' && secondChar < 'z') {
+      return true;
+    }
+
+    return false;
   }
 
   private static void setDefaultTransitions(int currentState, int nextState) {
@@ -229,97 +293,84 @@ public class J2clMinifier {
   }
 
   @SuppressWarnings("unused")
-  private static StringBuilder skipChar(
-      StringBuilder minifiedContentBuffer, StringBuilder identifierBuffer, char c, int state) {
-    return identifierBuffer;
-  }
+  private static void skipChar(Buffer buffer, char c) {}
 
-  private static StringBuilder skipCharUnlessNewLine(
-      StringBuilder minifiedContentBuffer, StringBuilder identifierBuffer, char c, int state) {
+  private static void skipCharUnlessNewLine(Buffer buffer, char c) {
     if (c == '\n') {
-      identifierBuffer = writeChar(minifiedContentBuffer, identifierBuffer, c, state);
+      writeChar(buffer, c);
     }
-    return identifierBuffer;
   }
 
-  @SuppressWarnings("unused")
-  private static StringBuilder startNewIdentifier(
-      StringBuilder minifiedContentBuffer, StringBuilder identifierBuffer, char c, int state) {
-    StringBuilder identifierBuilder = new StringBuilder();
-    identifierBuilder.append(c);
-    return identifierBuilder;
+  private static void startNewIdentifier(Buffer buffer, char c) {
+    buffer.recordStartOfNewIdentifier();
+    writeChar(buffer, c);
   }
 
-  private static StringBuilder writeCharOrReplace(
-      StringBuilder minifiedContentBuffer, StringBuilder identifierBuffer, char c, int state) {
-    if ((c == '\n' || c == 0) && state == S_NON_IDENTIFIER) {
-      maybeReplaceGoogStatement(minifiedContentBuffer);
-    }
+  private static void writeNonIdentifierCharOrReplace(Buffer buffer, char c) {
     if (c != 0) {
-      minifiedContentBuffer.append(c);
+      writeChar(buffer, c);
     }
-    return identifierBuffer;
+    if (buffer.endOfStatement()) {
+      maybeReplaceStatement(buffer);
+    }
   }
 
+  private static final Pattern FIELD_STATEMENT = Pattern.compile(" *[\\w_$]+(\\.[\\w_$]+)+;");
   private static final String MODULE_NAME = "['\"][\\w\\.$]+['\"]";
   private static final Pattern GOOG_FORWARD_DECLARE =
       Pattern.compile("((?:let|var) [\\w$]+) = goog.forwardDeclare\\(" + MODULE_NAME + "\\);");
   private static final Pattern GOOG_REQUIRE =
       Pattern.compile("goog.require\\(" + MODULE_NAME + "\\);");
 
-  private static void maybeReplaceGoogStatement(StringBuilder minifiedContentBuffer) {
-    int start = minifiedContentBuffer.lastIndexOf("\n") + 1;
-    int end = minifiedContentBuffer.length();
-    if (start == end) {
-      return;
-    }
-
-    // goog.forwardDeclare is only useful for compiler except the variable declaration.
-    Matcher m = GOOG_FORWARD_DECLARE.matcher(minifiedContentBuffer).region(start, end);
+  private static void maybeReplaceStatement(Buffer buffer) {
+    // Unassigned field access is only useful for compiler.
+    Matcher m = buffer.matchLastStatement(FIELD_STATEMENT);
     if (m.matches()) {
-      minifiedContentBuffer.replace(start, minifiedContentBuffer.length(), m.group(1)).append(';');
+      buffer.replaceStatement("");
       return;
     }
 
-    // Unassigned goog.require is only useful for compiler and bundling.
-    m = GOOG_REQUIRE.matcher(minifiedContentBuffer).region(start, end);
-    if (m.matches()) {
-      minifiedContentBuffer.delete(start, minifiedContentBuffer.length());
+    int index = buffer.lastStatementIndexOf("goog.");
+    if (index == -1) {
       return;
+    }
+
+    if (index == 0) {
+      // Unassigned goog.require is only useful for compiler and bundling.
+      m = buffer.matchLastStatement(GOOG_REQUIRE);
+      if (m.matches()) {
+        buffer.replaceStatement("");
+      }
+    } else {
+      // goog.forwardDeclare is only useful for compiler except the variable declaration.
+      m = buffer.matchLastStatement(GOOG_FORWARD_DECLARE);
+      if (m.matches()) {
+        buffer.replaceStatement(m.group(1) + ";");
+      }
     }
   }
 
-  private static StringBuilder writeChar(
-      StringBuilder minifiedContentBuffer, StringBuilder identifierBuffer, char c, int state) {
-    minifiedContentBuffer.append(c);
-    return identifierBuffer;
+  private static void writeChar(Buffer buffer, char c) {
+    buffer.append(c);
   }
 
-  @SuppressWarnings("unused")
-  private static StringBuilder writeSlash(
-      StringBuilder minifiedContentBuffer, StringBuilder identifierBuffer, char c, int state) {
-    identifierBuffer = writeChar(minifiedContentBuffer, identifierBuffer, '/', state);
-    return identifierBuffer;
+  private static void writeSlash(Buffer buffer, @SuppressWarnings("unused") char c) {
+    writeChar(buffer, '/');
   }
 
-  private static StringBuilder writeSlashAndChar(
-      StringBuilder minifiedContentBuffer, StringBuilder identifierBuffer, char c, int state) {
-    identifierBuffer = writeChar(minifiedContentBuffer, identifierBuffer, '/', state);
-    identifierBuffer = writeChar(minifiedContentBuffer, identifierBuffer, c, state);
-    return identifierBuffer;
+  private static void writeSlashAndChar(Buffer buffer, char c) {
+    writeChar(buffer, '/');
+    writeChar(buffer, c);
   }
 
-  private static StringBuilder writeDoubleSlashAndChar(
-      StringBuilder minifiedContentBuffer, StringBuilder identifierBuffer, char c, int state) {
-    identifierBuffer = writeChar(minifiedContentBuffer, identifierBuffer, '/', state);
-    return writeSlashAndChar(minifiedContentBuffer, identifierBuffer, c, state);
+  private static void writeDoubleSlashAndChar(Buffer buffer, char c) {
+    writeChar(buffer, '/');
+    writeSlashAndChar(buffer, c);
   }
 
-  private static StringBuilder writeSlashAndStartNewIdentifier(
-      StringBuilder minifiedContentBuffer, StringBuilder identifierBuffer, char c, int state) {
-    identifierBuffer = writeChar(minifiedContentBuffer, identifierBuffer, '/', state);
-    identifierBuffer = startNewIdentifier(minifiedContentBuffer, identifierBuffer, c, state);
-    return identifierBuffer;
+  private static void writeSlashAndStartNewIdentifier(Buffer buffer, char c) {
+    writeChar(buffer, '/');
+    startNewIdentifier(buffer, c);
   }
 
   private static String extractFileKey(String fullPath) {
@@ -382,18 +433,18 @@ public class J2clMinifier {
     transFn = new TransitionFunction[numberOfStates][numberOfStates];
 
     transFn[S_NON_IDENTIFIER][S_IDENTIFIER] = J2clMinifier::startNewIdentifier;
-    transFn[S_NON_IDENTIFIER][S_NON_IDENTIFIER] = J2clMinifier::writeCharOrReplace;
+    transFn[S_NON_IDENTIFIER][S_NON_IDENTIFIER] = J2clMinifier::writeNonIdentifierCharOrReplace;
     transFn[S_NON_IDENTIFIER][S_MAYBE_COMMENT_START] = J2clMinifier::skipChar;
     transFn[S_NON_IDENTIFIER][S_SINGLE_QUOTED_STRING] = J2clMinifier::writeChar;
     transFn[S_NON_IDENTIFIER][S_DOUBLE_QUOTED_STRING] = J2clMinifier::writeChar;
-    transFn[S_NON_IDENTIFIER][S_END_STATE] = J2clMinifier::writeCharOrReplace;
+    transFn[S_NON_IDENTIFIER][S_END_STATE] = J2clMinifier::writeNonIdentifierCharOrReplace;
 
-    transFn[S_IDENTIFIER][S_IDENTIFIER] = J2clMinifier::bufferIdentifierChar;
-    transFn[S_IDENTIFIER][S_NON_IDENTIFIER] = this::writeIdentifierAndChar;
-    transFn[S_IDENTIFIER][S_MAYBE_COMMENT_START] = this::writeIdentifier;
-    transFn[S_IDENTIFIER][S_SINGLE_QUOTED_STRING] = this::writeIdentifierAndChar;
-    transFn[S_IDENTIFIER][S_DOUBLE_QUOTED_STRING] = this::writeIdentifierAndChar;
-    transFn[S_IDENTIFIER][S_END_STATE] = this::writeIdentifier;
+    transFn[S_IDENTIFIER][S_IDENTIFIER] = J2clMinifier::writeChar;
+    transFn[S_IDENTIFIER][S_NON_IDENTIFIER] = this::maybeReplaceIdentifierAndWriteNonIdentifier;
+    transFn[S_IDENTIFIER][S_MAYBE_COMMENT_START] = this::maybeReplaceIdentifier;
+    transFn[S_IDENTIFIER][S_SINGLE_QUOTED_STRING] = this::maybeReplaceIdentifierAndWriteChar;
+    transFn[S_IDENTIFIER][S_DOUBLE_QUOTED_STRING] = this::maybeReplaceIdentifierAndWriteChar;
+    transFn[S_IDENTIFIER][S_END_STATE] = this::maybeReplaceIdentifier;
 
     transFn[S_MAYBE_COMMENT_START][S_IDENTIFIER] = J2clMinifier::writeSlashAndStartNewIdentifier;
     transFn[S_MAYBE_COMMENT_START][S_MAYBE_COMMENT_START] = J2clMinifier::writeChar;
@@ -473,9 +524,7 @@ public class J2clMinifier {
 
     boolean[] unusedLines = unusedLinesPerFile.get(fileKey);
 
-    char[] chars = getChars(content);
-    StringBuilder minifiedContentBuffer = new StringBuilder();
-    StringBuilder identifierBuffer = new StringBuilder();
+    Buffer buffer = new Buffer();
     int lastParseState = S_NON_IDENTIFIER;
     int lineNumber = 0;
     boolean skippingLine = unusedLines != null && unusedLines[lineNumber];
@@ -485,8 +534,8 @@ public class J2clMinifier {
      * non-identifier chars immediately and accumulating identifiers chars for minifying and copying
      * when the identifier ends.
      */
-    for (int i = 0; i < chars.length; i++) {
-      char c = chars[i];
+    for (int i = 0; i < content.length(); i++) {
+      char c = content.charAt(i);
 
       // Skip unused lines if necessary. Any unused line should not effect the state machine.
       if (unusedLines != null) {
@@ -500,9 +549,7 @@ public class J2clMinifier {
 
       int parseState = nextState[lastParseState][c < 256 ? c : 0];
 
-      TransitionFunction transitionFunction = transFn[lastParseState][parseState];
-      identifierBuffer =
-          transitionFunction.transition(minifiedContentBuffer, identifierBuffer, c, lastParseState);
+      transFn[lastParseState][parseState].transition(buffer, c);
 
       lastParseState = parseState;
     }
@@ -511,11 +558,9 @@ public class J2clMinifier {
     checkState(unusedLines == null || lineNumber >= unusedLines.length - 1);
 
     // Transition to the end state
-    TransitionFunction transitionFunction = transFn[lastParseState][S_END_STATE];
-    transitionFunction.transition(
-        minifiedContentBuffer, identifierBuffer, (char) 0, lastParseState);
+    transFn[lastParseState][S_END_STATE].transition(buffer, (char) 0);
 
-    minifiedContent = minifiedContentBuffer.toString();
+    minifiedContent = buffer.toString();
     // Update the minified content cache for next time.
     minifiedContentByContent.put(content, minifiedContent);
 
@@ -551,25 +596,21 @@ public class J2clMinifier {
     return identifier + MINIFICATION_SEPARATOR + count;
   }
 
-  private StringBuilder writeIdentifier(
-      StringBuilder minifiedContentBuffer,
-      StringBuilder identifierBuffer,
-      @SuppressWarnings("unused") char c,
-      int state) {
-    String identifier = identifierBuffer.toString();
+  private void maybeReplaceIdentifier(Buffer buffer, @SuppressWarnings("unused") char c) {
+    String identifier = buffer.getIdentifier();
     if (isMinifiableIdentifier(identifier)) {
-      minifiedContentBuffer.append(getMinifiedIdentifier(identifier));
-    } else {
-      minifiedContentBuffer.append(identifier);
+      buffer.replaceIdentifier(getMinifiedIdentifier(identifier));
     }
-    return identifierBuffer;
   }
 
-  private StringBuilder writeIdentifierAndChar(
-      StringBuilder minifiedContentBuffer, StringBuilder identifierBuffer, char c, int state) {
-    writeIdentifier(minifiedContentBuffer, identifierBuffer, c, state);
-    minifiedContentBuffer.append(c);
-    return identifierBuffer;
+  private void maybeReplaceIdentifierAndWriteChar(Buffer buffer, char c) {
+    maybeReplaceIdentifier(buffer, c);
+    writeChar(buffer, c);
+  }
+
+  private void maybeReplaceIdentifierAndWriteNonIdentifier(Buffer buffer, char c) {
+    maybeReplaceIdentifier(buffer, c);
+    writeNonIdentifierCharOrReplace(buffer, c);
   }
 
   private static CodeRemovalInfo readCodeRemovalInfoFile(String codeRemovalInfoFilePath) {
@@ -627,7 +668,7 @@ public class J2clMinifier {
   public static void main(String... args) throws IOException {
     checkState(args.length == 1, "Provide a input file to minify");
     String file = args[0];
-    String contents = new String(Files.readAllBytes(Paths.get(file)), StandardCharsets.UTF_8);
+    String contents = new String(Files.readAllBytes(Paths.get(file)), UTF_8);
     System.out.println(new J2clMinifier().minify(file, contents));
   }
 }

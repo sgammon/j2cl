@@ -19,9 +19,10 @@ import static com.google.common.collect.ImmutableList.toImmutableList;
 
 import com.google.common.io.CharSink;
 import com.google.common.io.Files;
-import com.google.j2cl.bazel.BazelWorker;
 import com.google.j2cl.common.Problems;
-import com.google.j2cl.libraryinfo.LibraryInfo;
+import com.google.j2cl.common.Problems.FatalError;
+import com.google.j2cl.common.bazel.BazelWorker;
+import com.google.j2cl.transpiler.backend.libraryinfo.LibraryInfo;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
@@ -33,7 +34,7 @@ import org.kohsuke.args4j.Argument;
 import org.kohsuke.args4j.Option;
 
 /** Runs The J2clRta as a worker. */
-public class BazelJ2clRta extends BazelWorker {
+final class BazelJ2clRta extends BazelWorker {
 
   private static final int CACHE_SIZE =
       Integer.parseInt(System.getProperty("j2cl.rta.protocachesize", "5000"));
@@ -53,20 +54,26 @@ public class BazelJ2clRta extends BazelWorker {
       required = true)
   String removalCodeInfoOutputFilePath = null;
 
+  @Option(
+      name = "--legacy_keep_jstype_interfaces_do_not_use",
+      usage =
+          "When this flag is set all JsType interfaces, even uninstantiated ones, are "
+              + "retained.",
+      required = false)
+  boolean keepJsTypeInterfaces = false;
+
   @Argument(required = true, usage = "The list of call graph files", multiValued = true)
   List<String> inputs = null;
 
   @Override
-  protected Problems run() {
+  protected void run(Problems problems) {
     List<LibraryInfo> libraryInfos =
         inputs.parallelStream().map(libraryInfoCache::get).collect(toImmutableList());
 
-    RtaResult rtaResult = RapidTypeAnalyser.analyse(libraryInfos);
+    RtaResult rtaResult = RapidTypeAnalyser.analyse(libraryInfos, keepJsTypeInterfaces);
 
-    writeToFile(unusedTypesOutputFilePath, rtaResult.getUnusedTypes());
-    writeToFile(removalCodeInfoOutputFilePath, rtaResult.getCodeRemovalInfo());
-
-    return new Problems();
+    writeToFile(unusedTypesOutputFilePath, rtaResult.getUnusedTypes(), problems);
+    writeToFile(removalCodeInfoOutputFilePath, rtaResult.getCodeRemovalInfo(), problems);
   }
 
   private static LibraryInfo readLibraryInfo(Path libraryInfoPath) throws IOException {
@@ -75,20 +82,20 @@ public class BazelJ2clRta extends BazelWorker {
     }
   }
 
-  private static void writeToFile(String filePath, List<String> lines) {
+  private static void writeToFile(String filePath, List<String> lines, Problems problems) {
     CharSink outputSink = Files.asCharSink(new File(filePath), StandardCharsets.UTF_8);
     try {
       outputSink.writeLines(lines);
     } catch (IOException e) {
-      throw new RuntimeException(e);
+      problems.fatal(FatalError.CANNOT_WRITE_FILE, e.toString());
     }
   }
 
-  private static void writeToFile(String filePath, CodeRemovalInfo results) {
+  private static void writeToFile(String filePath, CodeRemovalInfo results, Problems problems) {
     try (FileOutputStream outputStream = new FileOutputStream(filePath)) {
       results.writeTo(outputStream);
     } catch (IOException e) {
-      throw new RuntimeException(e);
+      problems.fatal(FatalError.CANNOT_WRITE_FILE, e.toString());
     }
   }
 

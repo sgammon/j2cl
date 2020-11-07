@@ -1,0 +1,40 @@
+package ${packageName};
+
+import com.google.j2cl.common.visitor.Processor;
+import java.util.ArrayDeque;
+import java.util.Deque;
+
+abstract class ProcessorPrivate implements Processor {
+
+  private Deque<Object> stackOfContext = new ArrayDeque<Object>();
+
+  final Object getCurrentContext() {
+    return stackOfContext.peek();
+  }
+
+#foreach($clazz in $classes)
+#if(${clazz.isContext()})
+
+  private Deque<${clazz.SimpleName}> stackOf${clazz.SimpleName} = new ArrayDeque<>();
+  final void push${clazz.SimpleName}(${clazz.SimpleName} node) {
+    stackOfContext.push(node);
+    stackOf${clazz.SimpleName}.push(node);
+  }
+  final ${clazz.SimpleName} pop${clazz.SimpleName}() {
+    stackOfContext.pop();
+    return stackOf${clazz.SimpleName}.pop();
+  }
+  public final ${clazz.SimpleName} getCurrent${clazz.SimpleName}() {
+    return stackOf${clazz.SimpleName}.peek();
+  }
+#end
+#end
+
+#foreach($clazz in $classes)
+  abstract boolean shouldProcess${clazz.SimpleName}(${clazz.SimpleName} node);
+#end
+
+#foreach($clazz in $classes)
+  abstract ${clazz.TopClassName} postProcess${clazz.SimpleName}(${clazz.SimpleName} node);
+#end
+}

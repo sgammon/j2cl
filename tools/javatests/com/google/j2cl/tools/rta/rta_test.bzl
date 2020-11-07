@@ -1,11 +1,13 @@
 """Test macro for j2cl_rta"""
 
 load("//build_defs:rules.bzl", "j2cl_rta")
+load("@bazel_skylib//rules:build_test.bzl", "build_test")
 
 def rta_test(
         name,
         targets,
-        unused_types_golden_file):
+        unused_types_golden_file,
+        keep_jstype_interfaces = False):
     """Test macro used for testing j2cl_rta.
 
     The macro defines the j2cl_rta rule and then create a java_test for comparing the result of the
@@ -25,7 +27,13 @@ def rta_test(
     j2cl_rta(
         name = rta_rule_name,
         targets = targets,
+        legacy_keep_jstype_interfaces_do_not_use = keep_jstype_interfaces,
         generate_unused_methods_for_testing_do_not_use = True,
+    )
+
+    build_test(
+        name = "%s_build_test" % rta_rule_name,
+        targets = [":%s" % rta_rule_name],
     )
 
     native.java_test(

@@ -1,7 +1,0 @@
-goog.module('com.google.j2cl.transpiler.readable.mixednestings.MyInterface');
-
-goog.require('nativebootstrap.Util');
-goog.require('com.google.j2cl.transpiler.readable.mixednestings.MyInterface.$LambdaAdaptor');
-
-const MyInterface = goog.require('com.google.j2cl.transpiler.readable.mixednestings.MyInterface$impl');
-exports = MyInterface;

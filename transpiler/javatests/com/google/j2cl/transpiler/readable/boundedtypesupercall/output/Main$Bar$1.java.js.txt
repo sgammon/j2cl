@@ -1,9 +1,0 @@
-goog.module('com.google.j2cl.transpiler.readable.boundedtypesupercall.Main.Bar.$1');
-
-goog.require('com.google.j2cl.transpiler.readable.boundedtypesupercall.Main.Foo');
-goog.require('nativebootstrap.Util');
-goog.require('com.google.j2cl.transpiler.readable.boundedtypesupercall.Main.Bar');
-goog.require('java.lang.Comparable');
-
-const $1 = goog.require('com.google.j2cl.transpiler.readable.boundedtypesupercall.Main.Bar.$1$impl');
-exports = $1;

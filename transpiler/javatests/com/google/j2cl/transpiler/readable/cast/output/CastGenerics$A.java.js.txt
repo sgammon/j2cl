@@ -1,7 +1,0 @@
-goog.module('com.google.j2cl.transpiler.readable.cast.CastGenerics.A');
-
-goog.require('nativebootstrap.Util');
-goog.require('com.google.j2cl.transpiler.readable.cast.CastGenerics.A.$LambdaAdaptor');
-
-const A = goog.require('com.google.j2cl.transpiler.readable.cast.CastGenerics.A$impl');
-exports = A;

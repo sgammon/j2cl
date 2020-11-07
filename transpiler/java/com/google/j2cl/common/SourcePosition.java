@@ -15,6 +15,8 @@
  */
 package com.google.j2cl.common;
 
+import static com.google.common.base.Preconditions.checkState;
+
 import com.google.auto.value.AutoValue;
 import com.google.auto.value.extension.memoized.Memoized;
 import java.io.File;
@@ -26,6 +28,12 @@ import javax.annotation.Nullable;
  */
 @AutoValue
 public abstract class SourcePosition implements Comparable<SourcePosition> {
+
+  public static final SourcePosition NONE =
+      newBuilder()
+          .setStartFilePosition(FilePosition.NONE)
+          .setEndFilePosition(FilePosition.NONE)
+          .build();
 
   public abstract FilePosition getStartFilePosition();
 
@@ -43,10 +51,7 @@ public abstract class SourcePosition implements Comparable<SourcePosition> {
         return pathComparisonResult;
       }
     }
-    if (getStartFilePosition().getLine() == o.getStartFilePosition().getLine()) {
-      return getStartFilePosition().getColumn() - o.getStartFilePosition().getColumn();
-    }
-    return getStartFilePosition().getLine() - o.getStartFilePosition().getLine();
+    return getStartFilePosition().compareTo(o.getStartFilePosition());
   }
 
   @Memoized
@@ -74,7 +79,15 @@ public abstract class SourcePosition implements Comparable<SourcePosition> {
 
     public abstract Builder setName(String name);
 
-    public abstract SourcePosition build();
+    abstract SourcePosition autoBuild();
+
+    public SourcePosition build() {
+      SourcePosition sourcePosition = autoBuild();
+      checkState(
+          sourcePosition.getStartFilePosition().compareTo(sourcePosition.getEndFilePosition())
+              <= 0);
+      return sourcePosition;
+    }
 
     public static Builder from(SourcePosition sourcePosition) {
       return sourcePosition.toBuilder();

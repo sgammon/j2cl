@@ -12,7 +12,6 @@ load(
     "RTA_ASPECT_ATTRS",
     "get_aspect_providers",
     "get_j2cl_info_from_aspect_providers",
-    "write_module_names_file",
 )
 
 _TransitiveLibraryInfo = provider(fields = ["files"])
@@ -23,16 +22,13 @@ def _library_info_aspect_impl(target, ctx):
 
     library_info_file = j2cl_info._private_.library_info if j2cl_info else []
 
-    # Because the aspect propagates along attributes listed in _RTA_ASPECT_ATTRS,
-    # the aspect has been previously applied to targets listed in those attributes.
-    # We can safely assume that _TransitiveLibraryInfo exists on those targets.
     transitive_library_infos = []
     for attr in RTA_ASPECT_ATTRS:
         if hasattr(ctx.rule.attr, attr):
-            transitive_library_infos += [
-                target[_TransitiveLibraryInfo].files
-                for target in getattr(ctx.rule.attr, attr)
-            ]
+            for target in getattr(ctx.rule.attr, attr):
+                # The aspect is not applied on source files and they don't have any provider.
+                if _TransitiveLibraryInfo in target:
+                    transitive_library_infos.append(target[_TransitiveLibraryInfo].files)
 
     return [_TransitiveLibraryInfo(
         files = depset(library_info_file, transitive = transitive_library_infos),
@@ -59,6 +55,8 @@ def _j2cl_rta_impl(ctx):
     rta_args.use_param_file("@%s", use_always = True)
     rta_args.add("--unusedTypesOutput", unused_types_list)
     rta_args.add("--removalCodeInfoOutput", removal_code_info_file)
+    if ctx.attr.legacy_keep_jstype_interfaces_do_not_use:
+        rta_args.add("--legacy_keep_jstype_interfaces_do_not_use")
     rta_args.add_all(all_library_info_files)
 
     jvm_args = []
@@ -76,9 +74,6 @@ def _j2cl_rta_impl(ctx):
         mnemonic = "J2clRta",
     )
 
-    # Store module names in a file so they can be accessed later
-    write_module_names_file(ctx)
-
     return [
         _J2clRtaInfo(
             unused_types_list = unused_types_list,
@@ -91,18 +86,16 @@ j2cl_rta = rule(
         # TODO(b/114732596): Add a check on targets provided in "targets" field.
         "targets": attr.label_list(aspects = [_library_info_aspect]),
         "generate_unused_methods_for_testing_do_not_use": attr.bool(default = False),
+        "legacy_keep_jstype_interfaces_do_not_use": attr.bool(default = False),
         "_rta_runner": attr.label(
+            default = Label("//build_defs/internal_do_not_use:J2clRta"),
             cfg = "host",
             executable = True,
-            default = Label(
-                "//tools/java/com/google/j2cl/tools/rta:J2clRta_worker",
-            ),
         ),
     },
     outputs = {
         "unused_types_list": "%{name}_unused_types.list",
         "removal_code_info_file": "%{name}_removal_code_info",
-        "module_name_list": "%{name}_module_names.list",
     },
     implementation = _j2cl_rta_impl,
 )

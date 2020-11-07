@@ -13,15 +13,20 @@
  */
 package com.google.j2cl.transpiler;
 
+import static com.google.common.collect.ImmutableList.toImmutableList;
+
 import com.google.common.base.Ascii;
 import com.google.common.base.Splitter;
-import com.google.common.collect.ImmutableList;
-import com.google.j2cl.bazel.BazelWorker;
-import com.google.j2cl.common.FrontendUtils;
-import com.google.j2cl.common.FrontendUtils.FileInfo;
-import com.google.j2cl.common.J2clUtils;
+import com.google.common.collect.ImmutableSet;
+import com.google.j2cl.common.OutputUtils;
+import com.google.j2cl.common.OutputUtils.Output;
 import com.google.j2cl.common.Problems;
-import com.google.j2cl.frontend.Frontend;
+import com.google.j2cl.common.Problems.FatalError;
+import com.google.j2cl.common.SourceUtils;
+import com.google.j2cl.common.SourceUtils.FileInfo;
+import com.google.j2cl.common.bazel.BazelWorker;
+import com.google.j2cl.transpiler.backend.Backend;
+import com.google.j2cl.transpiler.frontend.Frontend;
 import java.io.File;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -55,15 +60,14 @@ final class BazelJ2clBuilder extends BazelWorker {
       name = "-output",
       required = true,
       metaVar = "<path>",
-      usage = "Specifies the zip into which to place compiled output.")
-  protected String output;
+      usage = "Directory or zip into which to place compiled output.")
+  protected Path output;
 
   @Option(
       name = "-libraryinfooutput",
-      required = true,
       metaVar = "<path>",
       usage = "Specifies the file into which to place the call graph.")
-  protected String libraryInfoOutput;
+  protected Path libraryInfoOutput;
 
   @Option(name = "-readablelibraryinfo", hidden = true)
   protected boolean readableLibraryInfo = false;
@@ -74,46 +78,64 @@ final class BazelJ2clBuilder extends BazelWorker {
   @Option(name = "-generatekytheindexingmetadata", hidden = true)
   protected boolean generateKytheIndexingMetadata = false;
 
+  @Option(
+      name = "-experimentaloptimizeautovalue",
+      usage = "Enables experomental optimizations for AutoValue. Not production ready.",
+      hidden = true)
+  protected boolean experimentalOptimizeAutovalue = false;
+
   /** Temporary flag to select the frontend during the transition to javac. */
   private static final Frontend FRONTEND =
       Frontend.valueOf(Ascii.toUpperCase(System.getProperty("j2cl.frontend", "jdt")));
 
+  @Option(
+      name = "-experimentalBackend",
+      metaVar = "(CLOSURE | WASM)",
+      usage = "Select the backend to use: CLOSURE (default), WASM (experimental).",
+      hidden = true)
+  protected Backend backend = Backend.CLOSURE;
+
+  @Option(name = "-experimentalGenerateWasmExport", hidden = true)
+  protected List<String> wasmEntryPoints = new ArrayList<>();
+
   @Override
-  protected Problems run() {
-    return J2clTranspiler.transpile(createOptions());
+  protected void run(Problems problems) {
+    try (Output out = OutputUtils.initOutput(this.output, problems)) {
+      J2clTranspiler.transpile(createOptions(out.getRoot(), problems), problems);
+    }
   }
 
-  private J2clTranspilerOptions createOptions() {
-    Problems problems = new Problems();
+  private J2clTranspilerOptions createOptions(Path outputPath, Problems problems) {
+
     if (this.readableSourceMaps && this.generateKytheIndexingMetadata) {
       problems.warning(
           "Readable source maps are not available when generating Kythe indexing metadata.");
       this.readableSourceMaps = false;
     }
 
-    Path outputPath = getZipOutput(this.output, problems);
-    Path libraryInfoOutputPath = Paths.get(this.libraryInfoOutput);
+    if (backend == Backend.CLOSURE && libraryInfoOutput == null) {
+      problems.fatal(FatalError.LIBRARY_INFO_OUTPUT_ARG_MISSING);
+    }
 
     List<FileInfo> allSources =
-        FrontendUtils.getAllSources(this.sources, problems)
-            .collect(ImmutableList.toImmutableList());
+        SourceUtils.getAllSources(this.sources, problems).collect(toImmutableList());
 
     List<FileInfo> allJavaSources =
         allSources.stream()
             .filter(p -> p.sourcePath().endsWith(".java"))
-            .collect(ImmutableList.toImmutableList());
+            .collect(toImmutableList());
 
     List<FileInfo> allNativeSources =
         allSources.stream()
             .filter(p -> p.sourcePath().endsWith(".native.js"))
-            .collect(ImmutableList.toImmutableList());
+            .collect(toImmutableList());
 
     // Directly put all supplied js sources into the zip file.
     allSources.stream()
         .filter(p -> p.sourcePath().endsWith(".js") && !p.sourcePath().endsWith("native.js"))
         .forEach(
             f ->
-                J2clUtils.copyFile(
+                OutputUtils.copyFile(
                     Paths.get(f.sourcePath()), outputPath.resolve(f.targetPath()), problems));
 
     return J2clTranspilerOptions.newBuilder()
@@ -121,16 +143,15 @@ final class BazelJ2clBuilder extends BazelWorker {
         .setNativeSources(allNativeSources)
         .setClasspaths(getPathEntries(this.classPath))
         .setOutput(outputPath)
-        .setLibraryInfoOutput(libraryInfoOutputPath)
+        .setLibraryInfoOutput(this.libraryInfoOutput)
         .setEmitReadableLibraryInfo(readableLibraryInfo)
         .setEmitReadableSourceMap(this.readableSourceMaps)
         .setGenerateKytheIndexingMetadata(this.generateKytheIndexingMetadata)
+        .setExperimentalOptimizeAutovalue(this.experimentalOptimizeAutovalue)
         .setFrontend(FRONTEND)
+        .setBackend(this.backend)
+        .setWasmEntryPoints(ImmutableSet.copyOf(wasmEntryPoints))
         .build();
-  }
-
-  private static Path getZipOutput(String output, Problems problems) {
-    return FrontendUtils.initZipOutput(output, problems).getPath("/");
   }
 
   private static List<String> getPathEntries(String path) {

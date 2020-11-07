@@ -1,4 +1,6 @@
 
+[comment]: # TOC
+
 # Getting Started
 
 ## Introduction
@@ -25,16 +27,12 @@ since J2CL closely follows Bazel Java idioms.
 Let's get started with cloning the repository and build a sample app from
 source:
 
-
--   Install Bazel 1.0.0:
+-   Install [Bazelisk](https://github.com/bazelbuild/bazelisk):
 
 ```shell
-    $ npm install -g @bazel/bazel@1.0.0
+    $ npm install -g @bazel/bazelisk
+    $ alias bazel=bazelisk
 ```
-
-(See [Install Bazel](https://bazel.build/versions/master/docs/install.html) for
-different platforms.)
-
 
 -   Clone this repository:
 
@@ -55,7 +53,7 @@ optimized output looks like:
 ```shell
       $ cat bazel-bin/src/main/java/com/google/j2cl/samples/helloworld/helloworld.js
       Output:
-      document.write('Hello from Java! and JS!');
+      document.body.innerText='Hello from Java! and JS!';
 ```
 
 Amazing, isn't it? When we say J2CL tightly optimizes, we really mean it!
@@ -116,8 +114,10 @@ and you are done.
 
 *   [JsInterop Cookbook](jsinterop-by-example.md) for examples on how to interop
     with Java and JavaScript.
+*   [Guava Example](https://github.com/google/j2cl/tree/master/samples/guava)
+    for a Hello World example using Guava.
 *   [J2CL Best Practices](best-practices.md) to make informed decisions for your
     project.
-*   [J2CL Transpiler Readable Repo](https://github.com/google/j2cl/tree/master/transpiler/javatests/com/google/j2cl/transpiler/readable)
+*   [J2CL Transpiler Readable Repo](https://github.com/google/j2cl/tree/master/transpiler/javatests/com/google/j2cl/readable)
     to dive into internals and see how J2CL generated code looks like in
     different situations.

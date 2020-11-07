@@ -1,0 +1,39 @@
+package ${packageName};
+
+public abstract class AbstractVisitor extends ProcessorPrivate implements Visitor {
+#foreach($clazz in $classes)
+
+  @Override
+  final boolean shouldProcess${clazz.SimpleName}(${clazz.SimpleName} node) {
+    return enter${clazz.SimpleName}(node);
+  }
+#end
+#foreach($clazz in $classes)
+
+  @Override
+  final ${clazz.TopClassName} postProcess${clazz.SimpleName}(${clazz.SimpleName} node) {
+    exit${clazz.SimpleName}(node);
+    return node;
+  }
+#end
+#foreach($clazz in $classes)
+
+  @Override
+  public boolean enter${clazz.SimpleName}(${clazz.SimpleName} node) {
+#if(${clazz.isTop()})
+    return true;
+#else
+    return enter${clazz.SuperclassName}(node);
+#end
+  }
+#end
+
+#foreach($clazz in $classes)
+  @Override
+  public void exit${clazz.SimpleName}(${clazz.SimpleName} node) {
+#if(!${clazz.isTop()})
+    exit${clazz.SuperclassName}(node);
+#end
+  }
+#end
+}

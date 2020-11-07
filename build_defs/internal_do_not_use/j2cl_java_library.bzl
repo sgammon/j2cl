@@ -6,7 +6,6 @@ load(":j2cl_js_common.bzl", "J2CL_JS_ATTRS", "JS_PROVIDER_NAME", "j2cl_js_provid
 def _impl_j2cl_library(ctx):
     j2cl_provider = j2cl_common.compile(
         ctx,
-        name = ctx.attr.name,
         srcs = ctx.files.srcs,
         deps = _j2cl_or_js_providers_of(ctx.attr.deps),
         exports = _j2cl_or_js_providers_of(ctx.attr.exports),
@@ -16,8 +15,8 @@ def _impl_j2cl_library(ctx):
         output_jar = ctx.outputs.jar,
         javac_opts = ctx.attr.javacopts,
         internal_transpiler_flags = {
-            "readable_source_maps": ctx.attr.readable_source_maps,
-            "readable_library_info": ctx.attr.readable_library_info,
+            k: getattr(ctx.attr, k)
+            for k in _J2CL_INTERNAL_LIB_ATTRS.keys()
         },
     )
 
@@ -54,6 +53,7 @@ def _collect_runfiles(ctx, files, deps):
 _J2CL_INTERNAL_LIB_ATTRS = {
     "readable_source_maps": attr.bool(default = False),
     "readable_library_info": attr.bool(default = False),
+    "experimental_optimize_autovalue": attr.bool(default = False),
 }
 
 _J2CL_LIB_ATTRS = {
@@ -61,8 +61,8 @@ _J2CL_LIB_ATTRS = {
     "srcs": attr.label_list(allow_files = [".java", ".js", ".srcjar", ".jar", ".zip"]),
     "deps": attr.label_list(providers = [JS_PROVIDER_NAME]),
     "exports": attr.label_list(providers = [JS_PROVIDER_NAME]),
-    "plugins": attr.label_list(allow_rules = ["java_plugin"], cfg = "host"),
-    "exported_plugins": attr.label_list(allow_rules = ["java_plugin"], cfg = "host"),
+    "plugins": attr.label_list(allow_rules = ["java_plugin", "java_library"], cfg = "host"),
+    "exported_plugins": attr.label_list(allow_rules = ["java_plugin", "java_library"], cfg = "host"),
     "javacopts": attr.string_list(),
 }
 _J2CL_LIB_ATTRS.update(_J2CL_INTERNAL_LIB_ATTRS)

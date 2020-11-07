@@ -1,7 +1,0 @@
-goog.module('com.google.j2cl.transpiler.readable.transitivejsoverlayimport.NonNativeUpper');
-
-goog.require('nativebootstrap.Util');
-goog.require('com.google.j2cl.transpiler.readable.transitivejsoverlayimport.Immediate.$Overlay');
-
-const NonNativeUpper = goog.require('com.google.j2cl.transpiler.readable.transitivejsoverlayimport.NonNativeUpper$impl');
-exports = NonNativeUpper;

@@ -1,7 +1,0 @@
-goog.module('com.google.j2cl.transpiler.readable.jsfunction.Main.TestJsFunctionInJsOverlayCapturingOuter.$Overlay');
-
-goog.require('nativebootstrap.Util');
-goog.require('nativebootstrap.Equality');
-
-const $Overlay = goog.require('com.google.j2cl.transpiler.readable.jsfunction.Main.TestJsFunctionInJsOverlayCapturingOuter.$Overlay$impl');
-exports = $Overlay;

@@ -2,7 +2,7 @@
 #  Implementation of RTA algorithm used to do fast method pruning.
 
 package(
-    licenses = ["notice"],  # Apache 2.0
+    licenses = ["notice"],
 )
 
 proto_library(
@@ -22,10 +22,7 @@ java_proto_library(
 java_binary(
     name = "J2clRta_worker",
     main_class = "com.google.j2cl.tools.rta.BazelJ2clRta",
-    visibility = [
-        "//:__subpackages__",
-        "//java/com/google/caribou/ui/pinto/modules:__subpackages__",
-    ],
+    visibility = ["//build_defs/internal_do_not_use:__pkg__"],
     runtime_deps = [":rta"],
 )
 
@@ -37,8 +34,8 @@ java_library(
         "//third_party:args4j",
         "//third_party:auto_value",
         "//third_party:guava",
-        "//transpiler/java/com/google/j2cl/bazel",
         "//transpiler/java/com/google/j2cl/common",
-        "//transpiler/java/com/google/j2cl/libraryinfo",
+        "//transpiler/java/com/google/j2cl/common/bazel",
+        "//transpiler/java/com/google/j2cl/transpiler/backend/libraryinfo",
     ],
 )

@@ -1,7 +1,0 @@
-goog.module('com.google.j2cl.transpiler.readable.overridingmethods.SomeInterface');
-
-goog.require('nativebootstrap.Util');
-goog.require('com.google.j2cl.transpiler.readable.overridingmethods.SomeInterface.$LambdaAdaptor');
-
-const SomeInterface = goog.require('com.google.j2cl.transpiler.readable.overridingmethods.SomeInterface$impl');
-exports = SomeInterface;

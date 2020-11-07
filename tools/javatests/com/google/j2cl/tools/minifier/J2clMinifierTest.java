@@ -39,6 +39,8 @@ public class J2clMinifierTest extends TestCase {
     assertNoChange("m___parseAndValidateInt__java_lang_String__int__int__int");
     assertNoChange("m___");
     assertNoChange("m__parseAndValidate");
+    assertNoChange("m__x");
+    assertNoChange("m_____x");
     assertNoChange("thism_baz__java_lang_Number();");
     assertNoChange("ClassEndingInLowercasem__InnerClass");
     // TODO(b/109721646): Uncomment once the regex literals are handled correctly.
@@ -85,7 +87,9 @@ public class J2clMinifierTest extends TestCase {
 
   public void testFields() {
     assertChange("f_someInstanceField__com_google_j2cl_MyClass", "someInstanceField_$1");
-    assertChange("$f_someStaticField__com_google_j2cl_MyClass", "someStaticField_$1");
+    assertChange("$static_someStaticField__com_google_j2cl_MyClass", "someStaticField_$1");
+    assertChange("$ordinal_ordinalField__com_google_j2cl_MyClass", "ordinalField_$1");
+    assertChange("$captured_capturedField__com_google_j2cl_MyClass", "capturedField_$1");
   }
 
   public void testFindsIdentifiersInContext() {
@@ -101,11 +105,11 @@ public class J2clMinifierTest extends TestCase {
     assertChange("{f_bar__com_google_j2cl_MyClass}", "{bar_$1}");
     assertChange("(f_bar__com_google_j2cl_MyClass)", "(bar_$1)");
 
-    assertChange(" $f_baz__com_google_j2cl_MyClass ", " baz_$1 ");
-    assertChange(".$f_baz__com_google_j2cl_MyClass(", ".baz_$1(");
-    assertChange(".$f_baz__com_google_j2cl_MyClass;", ".baz_$1;");
-    assertChange("{$f_baz__com_google_j2cl_MyClass}", "{baz_$1}");
-    assertChange("($f_baz__com_google_j2cl_MyClass)", "(baz_$1)");
+    assertChange(" $static_baz__com_google_j2cl_MyClass ", " baz_$1 ");
+    assertChange(".$static_baz__com_google_j2cl_MyClass(", ".baz_$1(");
+    assertChange(".$static_baz__com_google_j2cl_MyClass;", ".baz_$1;");
+    assertChange("{$static_baz__com_google_j2cl_MyClass}", "{baz_$1}");
+    assertChange("($static_baz__com_google_j2cl_MyClass)", "(baz_$1)");
 
     assertChange(" $implements__java_util_Map$Entry ", " implements_$1 ");
     assertChange(".$implements__java_util_Map$Entry(", ".implements_$1(");
@@ -113,7 +117,7 @@ public class J2clMinifierTest extends TestCase {
     assertChange("{$implements__java_util_Map$Entry}", "{implements_$1}");
     assertChange("($implements__java_util_Map$Entry)", "(implements_$1)");
 
-    assertChange("abc.$f_baz__com_google_j2cl_MyClass.klm", "abc.baz_$1.klm");
+    assertChange("abc.$static_baz__com_google_j2cl_MyClass.klm", "abc.baz_$1.klm");
   }
 
   public void testLineComments() {
@@ -154,6 +158,19 @@ public class J2clMinifierTest extends TestCase {
     assertChange("m_baz__java_lang_Object__java_lang_String", "baz_$1");
   }
 
+  public void testWhiteSpace() {
+    assertChange(" \n", "\n");
+    assertChange("  \n  \n", "\n\n");
+    assertChange("m_bar__java_lang_Object \n", "bar_$1\n");
+    assertChange("  /* */\n", "\n");
+    assertChange("  //abc\n", "\n");
+    assertChange("x = {};   \n", "x = {};\n");
+    assertChange("if (a) {    \n", "if (a) {\n");
+    assertChange("\"     \"    \n", "\"     \"\n");
+
+    assertNoChange("  this.call();");
+  }
+
   public void testForwardDeclare() {
     assertChange("let Byte = goog.forwardDeclare('java.lang.Byte$impl');", "let Byte;");
     assertChange("let Byte = goog.forwardDeclare(\"java.lang.Byte$impl\");", "let Byte;");
@@ -165,7 +182,6 @@ public class J2clMinifierTest extends TestCase {
             + "var Foo = goog.forwardDeclare('java.lang.Foo');",
         "let Byte;\nvar Foo;");
 
-    assertNoChange("let Byte = goog.forwardDeclare('java.lang.Byte');('$impl');");
     assertNoChange("goog.forwardDeclare('java.lang.Foo');");
     assertNoChange("var Foo = goog.forwardDeclare('java.lang.Foo')");
     assertNoChange("identvar Foo = goog.forwardDeclare('java.lang.Foo');");
@@ -183,6 +199,25 @@ public class J2clMinifierTest extends TestCase {
     assertNoChange("goog.require('java.lang.Foo')");
     assertNoChange("identgoog.require('java.lang.Foo');");
     assertNoChange("\"goog.require('java.lang.Foo');\"");
+  }
+
+  public void testFieldDeclaration() {
+    assertChange("this.bar;", "");
+    assertChange("Foo.bar;", "");
+    assertChange("Foo.prototype.bar;", "");
+    assertChange("/** {bar} */Foo.bar;", "");
+    assertChange("  /** {bar} */\nFoo.bar;", "\n");
+    assertChange(" Foo.bar;", "");
+    assertChange("Agoog.bar;", ""); // Note that this includes "goog."
+    assertChange("\nthis.bar;", "\n");
+    assertChange("\n  this.a;\n  this.b;\n", "\n\n\n");
+    assertChange("this.bar;\nthis.foo;\nthis.zoo;", "\n\n");
+    assertChange("{this.bar;}{this.foo;}this.zoo;", "{}{}");
+
+    assertNoChange("var a = Foo.bar;");
+    assertNoChange("var a =\n Foo.bar;");
+    assertNoChange("f =>\n foo.bar;");
+    assertNoChange("while(Foo.bar)");
   }
 
   public void testNoChanges() {
@@ -218,6 +253,28 @@ public class J2clMinifierTest extends TestCase {
     // Mixed
     assertNoChange("\"'/* */'\"");
     assertNoChange("'\"/* */\"'");
+  }
+
+  public void testExample() {
+    assertChange(
+        String.join(
+            "\n",
+            "constructor(fn) {",
+            "  $LambdaAdaptor.$clinit();",
+            "  super();",
+            "  /**@type{number}*/",
+            "  this.m_boo__;",
+            "  this.$ctor__hoo__(fn);",
+            "}"),
+        String.join(
+            "\n",
+            "constructor(fn) {",
+            "  $LambdaAdaptor.$clinit();",
+            "  super();",
+            "",
+            "",
+            "  this.ctor_$1(fn);",
+            "}"));
   }
 
   private void assertChange(String input, String output) {

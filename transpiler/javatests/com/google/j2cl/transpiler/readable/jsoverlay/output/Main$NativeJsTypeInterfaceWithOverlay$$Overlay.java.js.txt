@@ -1,8 +1,0 @@
-goog.module('com.google.j2cl.transpiler.readable.jsoverlay.Main.NativeJsTypeInterfaceWithOverlay.$Overlay');
-
-goog.require('nativebootstrap.Util');
-goog.require('test.foo.NativeJsTypeInterfaceWithOverlay');
-goog.require('java.lang.Object');
-
-const $Overlay = goog.require('com.google.j2cl.transpiler.readable.jsoverlay.Main.NativeJsTypeInterfaceWithOverlay.$Overlay$impl');
-exports = $Overlay;

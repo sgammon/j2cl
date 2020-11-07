@@ -1,5 +1,5 @@
 package(
-    licenses = ["notice"],  # Apache 2.0
+    licenses = ["notice"],
 )
 
 java_library(
@@ -11,25 +11,27 @@ java_library(
     deps = [
         "//third_party:auto_value",
         "//third_party:guava",
-        "//transpiler/java/com/google/j2cl/ast",
-        "//transpiler/java/com/google/j2cl/ast/visitors",
+        "//third_party:jsr305_annotations",
         "//transpiler/java/com/google/j2cl/common",
-        "//transpiler/java/com/google/j2cl/frontend",
-        "//transpiler/java/com/google/j2cl/generator",
+        "//transpiler/java/com/google/j2cl/transpiler/ast",
+        "//transpiler/java/com/google/j2cl/transpiler/backend",
+        "//transpiler/java/com/google/j2cl/transpiler/frontend",
+        "//transpiler/java/com/google/j2cl/transpiler/passes",
     ],
 )
 
 java_library(
     name = "commandlinerunner_lib",
     srcs = ["J2clCommandLineRunner.java"],
-    visibility = ["//transpiler/javatests/com/google/j2cl/transpiler:__subpackages__"],
+    visibility = ["//transpiler/javatests/com/google/j2cl:__subpackages__"],
     deps = [
         ":transpiler_lib",
         "//third_party:args4j",
         "//third_party:auto_value",
         "//third_party:guava",
         "//transpiler/java/com/google/j2cl/common",
-        "//transpiler/java/com/google/j2cl/frontend",
+        "//transpiler/java/com/google/j2cl/transpiler/backend",
+        "//transpiler/java/com/google/j2cl/transpiler/frontend",
     ],
 )
 
@@ -51,9 +53,10 @@ java_library(
         "//third_party:args4j",
         "//third_party:auto_value",
         "//third_party:guava",
-        "//transpiler/java/com/google/j2cl/bazel",
         "//transpiler/java/com/google/j2cl/common",
-        "//transpiler/java/com/google/j2cl/frontend",
+        "//transpiler/java/com/google/j2cl/common/bazel",
+        "//transpiler/java/com/google/j2cl/transpiler/backend",
+        "//transpiler/java/com/google/j2cl/transpiler/frontend",
     ],
 )
 
@@ -62,6 +65,7 @@ java_binary(
     jvm_flags = [
         "-XX:+TieredCompilation",
         "-Dj2cl.deterministicTimestamps=true",
+        "-Xss2M",
     ] + select({
         ":javac": [
             "-Dj2cl.frontend=javac",

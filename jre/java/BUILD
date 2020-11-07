@@ -2,49 +2,91 @@
 #   j2cl/jre: JRE subset for transpilation.
 #
 
-load(":j2cl_mirror_from_gwt.bzl", "j2cl_mirror_from_gwt")
+load("//build_defs:rules.bzl", "j2cl_library", "j2wasm_library")
+load("@bazel_tools//tools/jdk:default_java_toolchain.bzl", "default_java_toolchain")
+load(":package_sources.bzl", "package_sources")
+load(":jdk_system.bzl", "jdk_system")
 
 package(
     default_visibility = [
         "//:__pkg__",
-        "//build_defs/internal_do_not_use:__pkg__",
         "//jre/javatests:__pkg__",
-        "//transpiler/javatests/com/google/j2cl/transpiler:__subpackages__",
+        "//transpiler/javatests:__subpackages__",
     ],
     licenses = ["notice"],  # Apache 2.0
 )
 
-# This target includes part of the JRE that is emulated by J2CL. We don't use it
-# as the 'bootclasspath' since doing so would have multiple implications:
-#
-# 1. Non-JRE deps would need to be included in the bootclasspath. As result javaemul.internal can
-# no longer be visibility controlled and user code will compile# without depending
-# jsinterop.annotations (which will be diverge from java_library).
-#
-# 2. JRE still needs to be included in JS deps and achieving that without including JRE
-# twice in the classpath would introduce a lot of new complexity.
-#
-# So instead; we have chosen a bootclasspath that is not composed of emulated JRE classes. Instead
-# it is composed of only classes that are not emulated but their byte-code is still needed to make
-# javac happy. This setup provides following benefits:
-#
-# 1. Still takes real JDK out of bootclasspath and solves all the issues that comes with it.
-# 2. We no longer transpile the classes that are only required for byte-code.
-# 3. Since JRE is included as a regular dep we get folllowing for free:
-#  - Generated JS is included in the deps
-#  - JRE emulation bytecode is included only once
-#  - JRE emulation gets JavaBuilder i.jar optimizations.
+config_setting(
+    name = "experimental_java11_support",
+    flag_values = {
+        "//:enable_experimental_java11_support": "True",
+    },
+)
 
-j2cl_mirror_from_gwt(
-    name = "jre",
-    excluded_srcs = ["javasynth/**"],
-    extra_js_srcs = [
-        "//jre/java/javaemul/internal/vmbootstrap/primitives",
+JRE_JAVAC_OPTS = select({
+    ":experimental_java11_support": [
+        # Remove the system (aka pre Java9 'bootclasspath').
+        # We need this to compile JRE otherwise it will result in a split package for JRE sources.
+        "--system",
+        "none",
+        # Allow JRE classes are allowed to depend on the jsinterop annotations
+        "--add-reads",
+        "java.base=ALL-UNNAMED",
+        # Enable Java 11 for the JRE sources
+        "-source",
+        "11",
+        "-target",
+        "11",
     ],
-    mirrored_files = [
+    "//conditions:default": [
+        "-source",
+        "8",
+        "-target",
+        "8",
+    ],
+})
+
+package_sources(
+    name = "jre_java_files",
+    srcs = [
         "//third_party:gwt_java_emul",
         "//third_party:gwt_java_emul_internal",
     ],
+    super_srcs = select({
+        ":experimental_java11_support": glob(["**/*.java"]),
+        "//conditions:default": glob(
+            ["**/*.java"],
+            exclude = ["module-info.java"],
+        ),
+    }),
+)
+
+filegroup(
+    name = "jre_native_files",
+    srcs = glob(["**/*.js"]) + [
+        "//jre/java/javaemul/internal/vmbootstrap/primitives",
+    ],
+)
+
+j2wasm_library(
+    name = "jre-j2wasm",
+    srcs = [
+        ":jre_java_files",
+    ],
+    javacopts = JRE_JAVAC_OPTS,
+    deps = [
+        "//third_party:gwt-javaemul-internal-annotations-j2wasm",
+        "//third_party:gwt-jsinterop-annotations-j2wasm",
+    ],
+)
+
+j2cl_library(
+    name = "jre",
+    srcs = [
+        ":jre_java_files",
+        ":jre_native_files",
+    ],
+    javacopts = JRE_JAVAC_OPTS,
     deps = [
         "//third_party:closure_math_long",
         "//third_party:closure_reflect",
@@ -53,10 +95,32 @@ j2cl_mirror_from_gwt(
     ],
 )
 
-# Target includes classes that are referenced due to synthesized byte code and only included to
-# satisfy the compiler checks. They are not available as part of the JRE emulation.
-# See above for more details on this setup.
+# Note that this target is separately compiled as a java_library to avoid circular
+# dependency.
 java_library(
     name = "jre_bootclasspath",
-    srcs = glob(["javasynth/**"]),
+    srcs = [":jre_java_files"],
+    javacopts = JRE_JAVAC_OPTS,
+    deps = [
+        "//third_party:gwt-javaemul-internal-annotations",
+        "//third_party:gwt-jsinterop-annotations",
+    ],
+)
+
+jdk_system(
+    name = "jdk_system",
+    bootclasspath = ":jre_bootclasspath",
+)
+
+JAVA_VERSION = select({
+    ":experimental_java11_support": "11",
+    "//conditions:default": "8",
+})
+
+default_java_toolchain(
+    name = "j2cl_java_toolchain",
+    bootclasspath = [":jdk_system"],
+    source_version = JAVA_VERSION,
+    target_version = JAVA_VERSION,
+    visibility = ["//build_defs/internal_do_not_use:__pkg__"],
 )

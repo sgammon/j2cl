@@ -1,8 +1,0 @@
-goog.module('com.google.j2cl.transpiler.readable.jsconstructor.JsConstructorClass.JsConstructorSubtypeOfRegularType');
-
-goog.require('com.google.j2cl.transpiler.readable.jsconstructor.JsConstructorClass.RegularType');
-goog.require('nativebootstrap.Util');
-goog.require('java.lang.Object');
-
-const JsConstructorSubtypeOfRegularType = goog.require('com.google.j2cl.transpiler.readable.jsconstructor.JsConstructorClass.JsConstructorSubtypeOfRegularType$impl');
-exports = JsConstructorSubtypeOfRegularType;

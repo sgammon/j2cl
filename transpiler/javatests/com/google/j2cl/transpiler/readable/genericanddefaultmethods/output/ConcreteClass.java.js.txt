@@ -1,8 +1,0 @@
-goog.module('com.google.j2cl.transpiler.readable.genericanddefaultmethods.ConcreteClass');
-
-goog.require('com.google.j2cl.transpiler.readable.genericanddefaultmethods.GenericClass');
-goog.require('com.google.j2cl.transpiler.readable.genericanddefaultmethods.InterfaceWithDefault');
-goog.require('nativebootstrap.Util');
-
-const ConcreteClass = goog.require('com.google.j2cl.transpiler.readable.genericanddefaultmethods.ConcreteClass$impl');
-exports = ConcreteClass;

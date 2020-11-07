@@ -60,9 +60,26 @@ alias(
     actual = "@com_google_auto_value",
 )
 
-alias(
+j2cl_import(
+    name = "auto_value-j2cl",
+    jar = "@com_google_auto_value//jar",
+)
+
+java_library(
     name = "auto_service",
-    actual = "@com_google_auto_service//jar",
+    exported_plugins = [":auto_service_plugin"],
+    exports = ["@com_google_auto_service_annotations//jar"],
+)
+
+java_plugin(
+    name = "auto_service_plugin",
+    processor_class = "com.google.auto.service.processor.AutoServiceProcessor",
+    deps = [
+        ":auto_common",
+        ":guava",
+        "@com_google_auto_service//jar",
+        "@com_google_auto_service_annotations//jar",
+    ],
 )
 
 alias(
@@ -158,12 +175,17 @@ j2cl_import(
 
 alias(
     name = "gwt-jsinterop-annotations",
-    actual = "@com_google_jsinterop_annotations_head//:jsinterop-annotations",
+    actual = "@com_google_jsinterop_annotations-j2cl//:jsinterop-annotations",
 )
 
-j2cl_import(
+alias(
     name = "gwt-jsinterop-annotations-j2cl",
-    jar = "@com_google_jsinterop_annotations_head//:jsinterop-annotations",
+    actual = "@com_google_jsinterop_annotations-j2cl//:jsinterop-annotations-j2cl",
+)
+
+alias(
+    name = "gwt-jsinterop-annotations-j2wasm",
+    actual = "@com_google_jsinterop_annotations-j2cl//:jsinterop-annotations-j2wasm",
 )
 
 j2cl_library(

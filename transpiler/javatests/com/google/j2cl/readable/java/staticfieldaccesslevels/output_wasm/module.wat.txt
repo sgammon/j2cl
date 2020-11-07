@@ -1,0 +1,23 @@
+;;; Code for staticfieldaccesslevels.StaticFieldAccessLevels
+
+;;; CLASS  StaticFieldAccessLevels
+
+(global $a@staticfieldaccesslevels.StaticFieldAccessLevels i32 (i32.const 0))
+(global $b@staticfieldaccesslevels.StaticFieldAccessLevels i32 (i32.const 0))
+(global $c@staticfieldaccesslevels.StaticFieldAccessLevels (ref null $java.lang.Object) (ref.null $java.lang.Object))
+(global $d@staticfieldaccesslevels.StaticFieldAccessLevels i32 (i32.const 0))
+(type $staticfieldaccesslevels.StaticFieldAccessLevels (struct
+))
+
+;;; int StaticFieldAccessLevels.test()
+(func $test<>:int@staticfieldaccesslevels.StaticFieldAccessLevels
+ (result i32)
+ (block
+  ;; return (staticfieldaccesslevels.StaticFieldAccessLevels.b) ? (staticfieldaccesslevels.StaticFieldAccessLevels.a) : (staticfieldaccesslevels.StaticFieldAccessLevels.d);
+  ;; unimplemented statement ReturnStatement
+  
+ )
+
+(i32.const 0)
+)
+

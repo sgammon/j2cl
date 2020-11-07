@@ -40,6 +40,16 @@ j2cl_test_integration_test_data(
 )
 
 j2cl_test_integration_test_data(
+    name = "TestAsyncAfterWillTimeOut",
+    deps = ASYNC_TEST_DEPS,
+)
+
+j2cl_test_integration_test_data(
+    name = "TestAsyncBeforeWillTimeOut",
+    deps = ASYNC_TEST_DEPS,
+)
+
+j2cl_test_integration_test_data(
     name = "TestChainingWithException",
     deps = ASYNC_TEST_DEPS,
 )
@@ -67,6 +77,11 @@ j2cl_test_integration_test_data(
 j2cl_test_integration_test_data(
     name = "TestListenableFuture",
     deps = ASYNC_TEST_DEPS + ["//third_party:guava"],
+)
+
+j2cl_test_integration_test_data(
+    name = "TestReturnsNullForAsyncAfter",
+    deps = ASYNC_TEST_DEPS,
 )
 
 j2cl_test_integration_test_data(
@@ -116,5 +131,15 @@ j2cl_test_integration_test_data(
 
 j2cl_test_integration_test_data(
     name = "TestWithExpectedException",
+    deps = ASYNC_TEST_DEPS,
+)
+
+j2cl_test_integration_test_data(
+    name = "TestFailingAsyncAfter",
+    deps = ASYNC_TEST_DEPS,
+)
+
+j2cl_test_integration_test_data(
+    name = "TestFailingAsyncBefore",
     deps = ASYNC_TEST_DEPS,
 )

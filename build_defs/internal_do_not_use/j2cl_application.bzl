@@ -9,9 +9,10 @@ def j2cl_application(
         rewrite_polyfills = False,
         jre_logging_log_level = "OFF",
         jre_checks_check_level = "NORMAL",
+        jre_class_metadata = "STRIPPED",
         closure_defines = dict(),
         extra_dev_resources = [],
-        extra_flags = [],
+        extra_production_args = [],
         **kwargs):
     """Create a J2CL application target.
 
@@ -37,14 +38,22 @@ def j2cl_application(
           by the compiler's runtime to support "old" browsers. Only affects
           production binary.
         jre_logging_log_level: the minimum log level that java.util.logging
-            should capture for production; the rest is optimized away.
+          should capture for production; the rest is optimized away.
         jre_checks_check_level: the level of checks provided by Java standard
           library emulation in production; the rest is optimized away.
           Note that development binary will still do checks but will throw
           assertion errors instead to prevent user code to incorrectly rely on
           specific exceptions to be thrown.
+        jre_class_metadata: the level of class metadata emulated at the runtime.
+          SIMPLE will provide basic metadata like class names, type of class etc.
+          STRIPPED will remove most of the metadata provided at SIMPLE level to
+          reduce the code size in production.
+          Note that development binary will still provide some metadata to help
+          with debugging.
         closure_defines: override the value of a variable defined by goog.define.
         extra_dev_resources: extra resource to serve for development server.
+        extra_production_args: extra 'args' to pass to production binary.
+        **kwargs: passed to underlying compilation and dev server.
     """
 
     entry_point_defs = ["--entry_point=goog:%s" % e for e in entry_points]
@@ -54,6 +63,7 @@ def j2cl_application(
     define_defaults = {
         "jre.checks.checkLevel": jre_checks_check_level,
         "jre.logging.logLevel": jre_logging_log_level,
+        "jre.classMetadata": jre_class_metadata,
     }
     _define_js("%s_config" % name, define_defaults, closure_defines)
 
@@ -61,7 +71,7 @@ def j2cl_application(
         name = name,
         defs = J2CL_OPTIMIZED_DEFS + entry_point_defs + [
             "--rewrite_polyfills=%s" % rewrite_polyfills,
-        ] + extra_flags,
+        ] + extra_production_args,
         deps = [":%s_config" % name] + deps,
         **kwargs
     )
@@ -83,13 +93,24 @@ def j2cl_application(
     }
     _define_js("%s_dev_config" % name, define_dev_defaults, closure_defines)
 
-    index_html = "<script src='http://localhost:35729/livereload.js'></script>"
-    index_html += "<script src='%s_dev_config.js'></script>" % name
-    index_html += "<script src='%s_dev.js'></script>" % name
+    index_html = """
+<head><script>
+const appName = "%s";
+function loadScript(url) {
+  const scriptElement = document.createElement("script");
+  scriptElement.setAttribute("src", url);
+  document.head.appendChild(scriptElement);
+}
+loadScript(`$${location.protocol}//$${location.hostname}:35729/livereload.js`);
+loadScript(`$${appName}_dev_config.js`);
+loadScript(`$${appName}_dev.js`);
+</script></head>
+"""
+
     dev_resources = [
         ":%s_dev.js" % name,
         ":%s_dev_config.js" % name,
-        _generate_file("%s_dev.html" % name, index_html),
+        _generate_file("%s_dev.html" % name, index_html % name),
     ] + extra_dev_resources
 
     js_devserver(

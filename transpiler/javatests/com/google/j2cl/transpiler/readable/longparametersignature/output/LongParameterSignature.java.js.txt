@@ -1,8 +1,0 @@
-goog.module('com.google.j2cl.transpiler.readable.longparametersignature.LongParameterSignature');
-
-goog.require('java.lang.Object');
-goog.require('nativebootstrap.Util');
-goog.require('nativebootstrap.Long');
-
-const LongParameterSignature = goog.require('com.google.j2cl.transpiler.readable.longparametersignature.LongParameterSignature$impl');
-exports = LongParameterSignature;

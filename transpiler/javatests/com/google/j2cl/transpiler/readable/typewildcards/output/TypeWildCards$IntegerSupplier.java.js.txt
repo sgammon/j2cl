@@ -1,8 +1,0 @@
-goog.module('com.google.j2cl.transpiler.readable.typewildcards.TypeWildCards.IntegerSupplier');
-
-goog.require('nativebootstrap.Util');
-goog.require('com.google.j2cl.transpiler.readable.typewildcards.TypeWildCards.IntegerSupplier.$LambdaAdaptor');
-goog.require('java.lang.Integer');
-
-const IntegerSupplier = goog.require('com.google.j2cl.transpiler.readable.typewildcards.TypeWildCards.IntegerSupplier$impl');
-exports = IntegerSupplier;

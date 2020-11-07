@@ -51,7 +51,7 @@ public class Problems {
         "@GwtIncompatible annotations found in %s "
             + "Please run this library through the @GwtIncompatible stripper tool.",
         1),
-    ;
+    LIBRARY_INFO_OUTPUT_ARG_MISSING("-libraryinfooutput option is mandatory", 0);
 
     // used for customized message.
     private final String message;
@@ -128,6 +128,7 @@ public class Problems {
   @FormatMethod
   private void problem(
       Severity severity, SourcePosition sourcePosition, String detailMessage, Object... args) {
+    checkArgument(sourcePosition != null || sourcePosition != SourcePosition.NONE);
     problem(
         severity,
         // SourcePosition lines are 0 based.
@@ -198,8 +199,8 @@ public class Problems {
     }
   }
 
-  public void abort() {
-    throw new Exit(this);
+  private void abort() {
+    throw new Exit();
   }
 
   public List<String> getErrors() {
@@ -236,15 +237,5 @@ public class Problems {
    *
    * <p>Note: It should never be caught except on the top level.
    */
-  public static class Exit extends java.lang.Error {
-    private final Problems problems;
-
-    private Exit(Problems problems) {
-      this.problems = problems;
-    }
-
-    public Problems getProblems() {
-      return problems;
-    }
-  }
+  public static class Exit extends java.lang.Error {}
 }

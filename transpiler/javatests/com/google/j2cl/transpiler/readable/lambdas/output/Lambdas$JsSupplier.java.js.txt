@@ -1,9 +1,0 @@
-goog.module('com.google.j2cl.transpiler.readable.lambdas.Lambdas.JsSupplier');
-
-goog.require('com.google.j2cl.transpiler.readable.lambdas.Lambdas.Equals');
-goog.require('nativebootstrap.Util');
-goog.require('com.google.j2cl.transpiler.readable.lambdas.Lambdas.JsSupplier.$LambdaAdaptor');
-goog.require('java.lang.Number');
-
-const JsSupplier = goog.require('com.google.j2cl.transpiler.readable.lambdas.Lambdas.JsSupplier$impl');
-exports = JsSupplier;
